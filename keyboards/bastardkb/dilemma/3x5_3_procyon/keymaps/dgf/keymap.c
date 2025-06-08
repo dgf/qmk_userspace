@@ -18,6 +18,7 @@
  */
 
 #include <stdint.h>
+#include <stdio.h>
 #include QMK_KEYBOARD_H
 
 enum dilemma_keymap_layers {
@@ -68,10 +69,71 @@ enum custom_keycodes {
     CH_OE_U, // Ö
     CH_UE_L, // ü
     CH_UE_U, // Ü
+    HMPRINT, // heatmap print
+    HMRESET, // heatmap reset
 };
+
+#define HEATMAP_ROWS 8
+#define HEATMAP_COLS 5
+uint32_t heatmap[HEATMAP_ROWS][HEATMAP_COLS] = {0};
+
+void reset_heat_map(void) {
+    for (uint8_t r = 0; r < HEATMAP_ROWS; r++)
+        for (uint8_t c = 0; c < HEATMAP_COLS; c++)
+            heatmap[r][c] = 0;
+}
+
+uint32_t sum_heat_map_rows(uint8_t min, uint8_t max) {
+    uint32_t s = 0;
+    for (uint8_t r = min; r < max; r++)
+        for (uint8_t c = 0; c < HEATMAP_COLS; c++)
+            s += heatmap[r][c];
+    return s;
+}
+
+uint32_t sum_heat_map_left(void) {
+    return sum_heat_map_rows(0, 4);
+}
+
+uint32_t sum_heat_map_right(void) {
+    return sum_heat_map_rows(4, 8);
+}
+
+void print_heat_map_row(uint32_t l[HEATMAP_COLS], uint32_t r[HEATMAP_COLS]) {
+    char b[142]; // max = 142 = "[4294967295 ]" x 10 + " " x 10 + "\n0"
+    char f[] = "[%6d ] [%6d ] [%6d ] [%6d ] [%6d ]   [%6d ] [%6d ] [%6d ] [%6d ] [%6d ]\n";
+    snprintf(b, sizeof(b), f, l[0], l[1], l[2], l[3], l[4], r[4], r[3], r[2], r[1], r[0]);
+    send_string(b);
+}
+
+void print_heat_map_thumbs(uint32_t l[HEATMAP_COLS], uint32_t r[HEATMAP_COLS]) {
+    char b[107]; // max = 107 = "[4294967295 ]" x 6 + " " x 27 + "\n0"
+    char f[] = "                    [%6d ] [%6d ] [%6d ]   [%6d ] [%6d ] [%6d ]\n";
+    snprintf(b, sizeof(b), f, l[2], l[0], l[1], r[1], r[0], r[2]);
+    send_string(b);
+}
+
+void print_heat_map(void) {
+    char     buffer[192]; // max = 142 = "[4294967295 ]" x 10 + " " x 10 + "\n0"
+    uint32_t sum_left  = sum_heat_map_left();
+    uint32_t sum_right = sum_heat_map_right();
+
+    char heat_meta[] = "heatmap of %6d presses            left%6d      %6d right\n";
+    snprintf(buffer, sizeof(buffer), heat_meta, sum_left + sum_right, sum_left, sum_right);
+    send_string(buffer);
+
+    print_heat_map_row(heatmap[0], heatmap[4]);
+    print_heat_map_row(heatmap[1], heatmap[5]);
+    print_heat_map_row(heatmap[2], heatmap[6]);
+    print_heat_map_thumbs(heatmap[3], heatmap[7]);
+}
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (record->event.pressed) {
+        if (record->event.key.row < HEATMAP_ROWS && record->event.key.col < HEATMAP_COLS) {
+            heatmap[record->event.key.row][record->event.key.col] += 1;
+        }
+
         switch (keycode) {
             case CH_EURO:
                 send_string(SS_DOWN(X_LOPT) SS_LSFT("2") SS_UP(X_LOPT));
@@ -96,6 +158,12 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 break;
             case CH_UE_U:
                 send_string(SS_LOPT("u") SS_LSFT("u"));
+                break;
+            case HMPRINT:
+                print_heat_map();
+                break;
+            case HMRESET:
+                reset_heat_map();
                 break;
         }
     }
@@ -124,9 +192,9 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   ),
   [LAYER_MEDIA] = LAYOUT_split_3x5_3(
   // ╭─────────────────────────────────────────────╮ ╭─────────────────────────────────────────────╮
-       XXXXXXX, KC_BRMD, KC_BRMU, XXXXXXX, XXXXXXX,     EE_CLR, XXXXXXX, XXXXXXX, XXXXXXX, QK_BOOT,
+       XXXXXXX, KC_BRMD, KC_BRMU, XXXXXXX, HMRESET,     EE_CLR, XXXXXXX, XXXXXXX, XXXXXXX, QK_BOOT,
   // ├─────────────────────────────────────────────┤ ├─────────────────────────────────────────────┤
-       KC_MPRV, KC_VOLD, KC_VOLU, KC_MNXT, XXXXXXX,    XXXXXXX, RM_HUEU, RM_SATU, RM_SPDU, XXXXXXX,
+       KC_MPRV, KC_VOLD, KC_VOLU, KC_MNXT, HMPRINT,    XXXXXXX, RM_HUEU, RM_SATU, RM_SPDU, XXXXXXX,
   // ├─────────────────────────────────────────────┤ ├─────────────────────────────────────────────┤
        RM_PREV, RM_VALD, RM_VALU, RM_NEXT, RM_TOGG,    XXXXXXX, RM_HUED, RM_SATD, RM_SPDD, XXXXXXX,
   // ╰─────────────────────────────────────────────┤ ├─────────────────────────────────────────────╯
