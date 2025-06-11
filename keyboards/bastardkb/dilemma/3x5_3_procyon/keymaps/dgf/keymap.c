@@ -99,29 +99,47 @@ uint32_t sum_heat_map_right(void) {
     return sum_heat_map_rows(4, 8);
 }
 
+void print_heat_map_fingers(uint32_t hm[HEATMAP_ROWS][HEATMAP_COLS]) {
+    char     buffer[128];
+    uint32_t left_pinky   = hm[0][0] + hm[1][0] + hm[2][0];
+    uint32_t left_ring    = hm[0][1] + hm[1][1] + hm[2][1];
+    uint32_t left_middle  = hm[0][2] + hm[1][2] + hm[2][2];
+    uint32_t left_index   = hm[0][3] + hm[1][3] + hm[2][3] + hm[0][4] + hm[1][4] + hm[2][4];
+    uint32_t right_index  = hm[4][3] + hm[5][3] + hm[6][3] + hm[4][4] + hm[5][4] + hm[6][4];
+    uint32_t right_middle = hm[4][2] + hm[5][2] + hm[6][2];
+    uint32_t right_ring   = hm[4][1] + hm[5][1] + hm[6][1];
+    uint32_t right_pinky  = hm[4][0] + hm[5][0] + hm[6][0];
+    char     format[]     = "%7d %9d %9d %9d                      %10d %9d %9d %9d\n";
+    snprintf(buffer, sizeof(buffer), format, left_pinky, left_ring, left_middle, left_index, right_index, right_middle, right_ring, right_pinky);
+    send_string(buffer);
+}
+
 void print_heat_map_row(uint32_t l[HEATMAP_COLS], uint32_t r[HEATMAP_COLS]) {
-    char b[142]; // max = 142 = "[4294967295 ]" x 10 + " " x 10 + "\n0"
+    char b[160];
     char f[] = "[%6d ] [%6d ] [%6d ] [%6d ] [%6d ]   [%6d ] [%6d ] [%6d ] [%6d ] [%6d ]\n";
     snprintf(b, sizeof(b), f, l[0], l[1], l[2], l[3], l[4], r[4], r[3], r[2], r[1], r[0]);
     send_string(b);
 }
 
 void print_heat_map_thumbs(uint32_t l[HEATMAP_COLS], uint32_t r[HEATMAP_COLS]) {
-    char b[107]; // max = 107 = "[4294967295 ]" x 6 + " " x 27 + "\n0"
-    char f[] = "                    [%6d ] [%6d ] [%6d ]   [%6d ] [%6d ] [%6d ]\n";
-    snprintf(b, sizeof(b), f, l[2], l[0], l[1], r[1], r[0], r[2]);
+    char     b[128]; // max = 118 = "[4294967295 ]" x 6 + 4294967295 x 2 " " x 18 + "\n0"
+    char     f[] = "       %10d   [%6d ] [%6d ] [%6d ]   [%6d ] [%6d ] [%6d ]%8d\n";
+    uint32_t lt  = l[2] + l[0] + l[1];
+    uint32_t rt  = r[2] + r[0] + r[1];
+    snprintf(b, sizeof(b), f, lt, l[2], l[0], l[1], r[1], r[0], r[2], rt);
     send_string(b);
 }
 
 void print_heat_map(void) {
-    char     buffer[192]; // max = 142 = "[4294967295 ]" x 10 + " " x 10 + "\n0"
     uint32_t sum_left  = sum_heat_map_left();
     uint32_t sum_right = sum_heat_map_right();
 
-    char heat_meta[] = "heatmap of %6d presses            left%6d      %6d right\n";
+    char buffer[128];
+    char heat_meta[] = "heatmap of %6d presses          left%8d  %10d right\n";
     snprintf(buffer, sizeof(buffer), heat_meta, sum_left + sum_right, sum_left, sum_right);
     send_string(buffer);
 
+    print_heat_map_fingers(heatmap);
     print_heat_map_row(heatmap[0], heatmap[4]);
     print_heat_map_row(heatmap[1], heatmap[5]);
     print_heat_map_row(heatmap[2], heatmap[6]);
